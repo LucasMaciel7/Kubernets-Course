@@ -305,7 +305,7 @@ spec:
 
 for apply just run the command: 
 
-```zsh
+```bash
  kubectl apply -f my-replica-set.yml  
 ```
 
@@ -368,6 +368,16 @@ No resources found in default namespace.
 ➜  Kubernets-Course git:(main) ✗ 
 ```
 
+## Deployments
 
+![alt text](img/kubernetes_deployment_overview.png)
+
+This is a very important tool in the kubernets context, because whith deplroyments we can do a lot of things like:
+
+- `Replica Managment`: In other words, we can do all what we see in the last chapter with `replica set`, we can keep for examples N pods runing at all time; if one dies it spins up a replacement
+
+- `Roling Updates`: Whe we change the image or config, it gradually replaces in pods with less requests first and after in the pods with more requests
+
+- `Rollbacks`: If a new version breaks in prod, we can do rollbacks for revert the last change
 
 
