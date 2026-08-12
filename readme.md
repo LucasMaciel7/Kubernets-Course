@@ -370,7 +370,9 @@ No resources found in default namespace.
 
 ## Deployments
 
-![alt text](img/kubernetes_deployment_overview.png)
+![alt text](img/kubernets_deployment.png)
+
+
 
 This is a very important tool in the kubernets context, because whith deplroyments we can do a lot of things like:
 
