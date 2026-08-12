@@ -8,27 +8,33 @@ This is a readme for documentation of my studies on kubernets, that i am start t
 KUbernets is an open-source system for container orchestration  it manages all life cycle of containers docker.
 
 
-![alt text](kubernets-cluster.png)
+![alt text](/img/kubernets-cluster.png)
 
 
-this the example for kubernets cluster
+this is an Kubernets cluster example:
 
 ### Control plane
 
-The control plane is very important for manage the custer, is the brain of the cluster inside it we have some very importants parts of kubernets like
+The control plane is very important for manage the custer, is the brain of the cluster inside it we have some very importants parts of kubernets like:
 
 - `ETCD`: The database no sql that kubernets use for save the worker's node state 
 
-- `Scheduler`: Scheduler is who decide on wich a new node should run based on node health metrics
+- `Scheduler`: Scheduler is who decide where a new pod should run based on the node helth metrics
 
-- `Controler Manager`: This men is who control the cluster based in waht you want, example if you want an container have 3 replicas the control manage will mantain 3 replicas of the container. Another important is an controller of the nodes, so he monitor if the nodes is sending health checks to him. 
+- `Controler Manager`: This men is who control the cluster based in wath you want, example... if you want an container have 3 replicas, the control manage will mantain tre container's replica. Another important thing is an controller of the nodes, so he monitor if the nodes is sending health checks to him. 
 
-- `HPA ( Horizontal pod scale )`: Monitor the pod CPU, Memory usage and if a node is not health then he do the horizontal scale, alocating mor resources for the node
+## Data Plane
 
+Imagine the diference between the control plan and Data plane is like the control is the brain and the data plane is the arms of the applications. Here we have the worker's node, can be physcal machine, or Virtual machines or containers like we are using now with the minukube. Inside the workers we have some componets importants like:
 
+- `Pod`: Pod is the more litle part of the kubernets cluster, we have a pod, an inside the pod we can have some containers docker running inside it 
+- `Kubelet`: The kubelet is who care about the containers is running helth or not, for example, if an container inside the pod down the kubelet restart the container, is a just simple example bu he has another responsibilites, talk with the cluster API server, sending helth metrics.
+- `Kubeproxy`: The kubeproxy inside the node is the Network manager, DNS, IP, Proxy.....
 
-PDB
+One thing important, the kubelet dosen't run the container directaly inside the node, for it we have anothers tools calleb by `CRI (Container running interface)` so all kubernts cluster doesn't run the docker contarners diretaly, for it he use another tool for run docker containers like
 
+- Container-d
+- cri-o 
 
 ## Minikube
   Responsible for up un cluster kubernets on our local machine inside docker container
@@ -49,7 +55,7 @@ minikube start
 
 You will see the display on your terminal
 
-``` 
+```bash
   Kubernets-Course git:(main) minikube start
 
 😄  minikube v1.38.1 on Ubuntu 26.04
@@ -129,6 +135,238 @@ kube-system   storage-provisioner                1/1     Running   1 (28m ago)  
 
 ```
 
+
+
+### Going UP the first pod
+
+In just a simple comand we can up for example a nginx server:
+
+```bash
+kubectl run my-pod-apache-server --image httpd
+```
+output: 
+
+```
+pod/my-pod-apache-server created
+
+```
+
+For you see the pod created:
+
+```bash
+kubectl get pods  
+```
+Output:
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl get pods   
+NAME                   READY   STATUS    RESTARTS   AGE
+my-pod-apache-server   1/1     Running   0          4m9s
+➜  Kubernets-Course git:(main) ✗ 
+
+```
+For see more informations about the pod:
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl get pods -o wide
+NAME                   READY   STATUS    RESTARTS   AGE     IP           NODE       NOMINATED NODE   READINESS GATES
+my-pod-apache-server   1/1     Running   0          4m48s   10.244.0.6   minikube   <none>           <none>
+➜  Kubernets-Course git:(main) ✗ 
+
+```
+
+For you see the pods in real time you can use 
+
+```bash
+kubectl get pods -w     
+
+NAME                   READY   STATUS    RESTARTS   AGE
+my-pod-apache-server   1/1     Running   0          5m47s
+
+
+```
+
+
+if you use the comand for see all pods runing in the cluster tha we see before like:
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl get pods -A
+NAMESPACE              NAME                                         READY   STATUS    RESTARTS      AGE
+default                my-pod-apache-server                         1/1     Running   0             7m23s
+kube-system            coredns-7d764666f9-hthb5                     1/1     Running   0             26h
+kube-system            etcd-minikube                                1/1     Running   0             26h
+kube-system            kube-apiserver-minikube                      1/1     Running   0             26h
+kube-system            kube-controller-manager-minikube             1/1     Running   0             26h
+kube-system            kube-proxy-hwb92                             1/1     Running   0             26h
+kube-system            kube-scheduler-minikube                      1/1     Running   0             26h
+kube-system            storage-provisioner                          1/1     Running   1 (26h ago)   26h
+kubernetes-dashboard   dashboard-metrics-scraper-5565989548-gnqvs   1/1     Running   0             26h
+kubernetes-dashboard   kubernetes-dashboard-b84665fb8-rcnnp         1/1     Running   0             26h
+➜  Kubernets-Course git:(main) ✗ 
+
+```
+
+You will see your container in the namespace `default`.
+
+For delete the pod you can use:
+
+``` bash
+➜  Kubernets-Course git:(main) ✗ kubectl delete pods my-pod-apache-server
+pod "my-pod-apache-server" deleted from default namespace
+➜  Kubernets-Course git:(main) ✗ 
+
+```
+
+now if you get the pods, there isn't the pod in your default namespace
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl get pods                        
+No resources found in default namespace.
+➜  Kubernets-Course git:(main) ✗ 
+
+```
+
+This is an form for you create a simple pod with just an comand, but in the day by day in the companys usualy we use the yaml files, for set the configurations of the pods, is a simple yaml that usualy the peoples uses in docker compose files we also will use with the pods configurations and another things in kubernets.
+
+
+For example, we hava the file my-pod.yml in this repository:
+
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+   name: my-pod-webserver
+   labels: 
+     apps: my-app
+     tier: frontend
+spec:
+   containers:
+   - name: my-container-nginx
+     image: nginx
+
+```
+
+
+We are going up an container with a simple nginx app, for up the fod from yml file you can use the comand:
+
+```bash
+kubectl create -f my-pod.yml
+
+```
+
+output: 
+
+```bash
+pod/my-pod-webserver created
+
+```
+
+Now you can see the pod simple pod already created:
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl get pods            
+NAME               READY   STATUS    RESTARTS   AGE
+my-pod-webserver   1/1     Running   0          2m53s
+
+```
+
+
+## ReplicaSet
+
+The replica set is an resource from kubernets that we can replicate the pod in anothers pods, for example in our aplication tha we were going up the nginx, with the replica set we can replicate the nginx in another for pods:
+
+
+```yaml
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata: 
+   name: frontend-rs
+   labels: 
+     app: frontend
+
+spec: 
+  template:
+    metadata: 
+      name: my-pod-webserver
+      labels: 
+        apps: my-app
+        tier: frontend
+    spec:
+      containers:
+      - name: my-container-nginx
+        image: nginx
+
+  selector:
+    matchLabels: 
+     apps: my-app
+  replicas: 4
+
+```
+
+for apply just run the command: 
+
+```zsh
+ kubectl apply -f my-replica-set.yml  
+```
+
+For see the replica set created:
+
+```zsh
+ Kubernets-Course git:(main) ✗ kubectl get replicaset
+NAME          DESIRED   CURRENT   READY   AGE
+frontend-rs   4         4         4       2m
+
+```
+
+Now you can see the 4 pods created: 
+
+
+```zsh
+➜  Kubernets-Course git:(main) ✗ kgp                
+NAME                READY   STATUS    RESTARTS   AGE
+frontend-rs-f7qxp   1/1     Running   0          31m
+frontend-rs-g9prw   1/1     Running   0          24m
+frontend-rs-rln7d   1/1     Running   0          31m
+frontend-rs-rpbfs   1/1     Running   0          31m
+➜  Kubernets-Course git:(main) ✗ 
+
+```
+
+for example, if you delete the pod `frontend-rs-f7qxp` the control manager will maintain 4 replicas of you pods sets on your replicaset.
+
+Example:
+```zsh
+➜  Kubernets-Course git:(main) ✗ kgp                  
+NAME                READY   STATUS    RESTARTS   AGE
+frontend-rs-f7qxp   1/1     Running   0          35m
+frontend-rs-g9prw   1/1     Running   0          27m
+frontend-rs-rln7d   1/1     Running   0          35m
+frontend-rs-rpbfs   1/1     Running   0          35m
+➜  Kubernets-Course git:(main) ✗ kubectl delete pods frontend-rs-f7qxp                 
+pod "frontend-rs-f7qxp" deleted from default namespace
+➜  Kubernets-Course git:(main) ✗ kgp                                  
+NAME                READY   STATUS    RESTARTS   AGE
+frontend-rs-g9prw   1/1     Running   0          28m
+frontend-rs-mccc2   1/1     Running   0          7s
+frontend-rs-rln7d   1/1     Running   0          35m
+frontend-rs-rpbfs   1/1     Running   0          35m
+```
+
+i delete the pod manualy and automatcaly the control manager create the pod to me for replace because i hava an replicaSet setted tha i want 4 replica's created.
+Now if you delete the replicaset, then the pods will be deleted automaticaly:
+
+```zsh
+➜  Kubernets-Course git:(main) ✗ kubectl get replicaset
+NAME          DESIRED   CURRENT   READY   AGE
+frontend-rs   4         4         4       40m
+➜  Kubernets-Course git:(main) ✗ kubectl delete replicaset frontend-rs
+replicaset.apps "frontend-rs" deleted from default namespace
+➜  Kubernets-Course git:(main) ✗ kubectl get replicaset               
+No resources found in default namespace.
+➜  Kubernets-Course git:(main) ✗ kubectl get pods      
+No resources found in default namespace.
+➜  Kubernets-Course git:(main) ✗ 
+```
 
 
 
