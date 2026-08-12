@@ -273,7 +273,11 @@ my-pod-webserver   1/1     Running   0          2m53s
 
 ## ReplicaSet
 
+![alt text](img/replica-set.png)
+
+
 The replica set is an resource from kubernets that we can replicate the pod in anothers pods, for example in our aplication tha we were going up the nginx, with the replica set we can replicate the nginx in another for pods:
+
 
 
 ```yaml
