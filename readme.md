@@ -376,8 +376,6 @@ No resources found in default namespace.
 
 ![alt text](img/kubernets_deployment.png)
 
-
-
 This is a very important tool in the kubernets context, because whith deplroyments we can do a lot of things like:
 
 - `Replica Managment`: In other words, we can do all what we see in the last chapter with `replica set`, we can keep for examples N pods runing at all time; if one dies it spins up a replacement
@@ -385,5 +383,126 @@ This is a very important tool in the kubernets context, because whith deplroymen
 - `Roling Updates`: Whe we change the image or config, it gradually replaces in pods with less requests first and after in the pods with more requests
 
 - `Rollbacks`: If a new version breaks in prod, we can do rollbacks for revert the last change
+
+we can try create a deploy like this:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+  labels: 
+    app: frontend
+
+spec:
+  template:
+    metadata:
+      name: pod-my-nginx
+      labels:
+        env: production
+    spec:
+      containers: 
+        - name: nginx-container
+          image: nginx:1.27
+  selector:
+    matchLabels:
+      env: production
+  replicas: 4
+```
+
+For apply just you run the comand:
+
+ ```bash
+ kubectl apply -f my-deployment.yml 
+ ```
+
+ See the deployment created:
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl get deployments     
+NAME                  READY   UP-TO-DATE   AVAILABLE   AGE
+frontend-deployment   4/4     4            4           3h31m
+
+```
+
+The deplyoment for mantain the replicas, he use the replica set resource for mantain the replicas so if you get the replicas set you will see
+
+```bash
+  Kubernets-Course git:(main) ✗ kubectl get replicaset                                    
+NAME                             DESIRED   CURRENT   READY   AGE
+frontend-deployment-6b976dbd67   4         4         4       160m
+```
+
+So if you get the pods we will see the 4 pods created:
+
+```bash
+-> Kubernets-Course git:(main) ✗ kubectl get pods        
+NAME                                   READY   STATUS    RESTARTS   AGE
+frontend-deployment-6b976dbd67-c2tcz   1/1     Running   0          161m
+frontend-deployment-6b976dbd67-gspmw   1/1     Running   0          161m
+frontend-deployment-6b976dbd67-j4f9t   1/1     Running   0          161m
+frontend-deployment-6b976dbd67-m7hvl   1/1     Running   0          161m
+
+```
+
+One important thing for you see is the comand:
+
+```bash
+kubectl describe  deployment.apps/frontend-deployment
+
+```
+
+The output:
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl describe  deployment.apps/frontend-deployment
+Name:                   frontend-deployment
+Namespace:              default
+CreationTimestamp:      Thu, 13 Aug 2026 10:42:25 -0300
+Labels:                 app=frontend
+Annotations:            deployment.kubernetes.io/revision: 2
+Selector:               env=production
+Replicas:               4 desired | 4 updated | 4 total | 4 available | 0 unavailable
+StrategyType:           RollingUpdate
+MinReadySeconds:        0
+RollingUpdateStrategy:  25% max unavailable, 25% max surge
+Pod Template:
+  Labels:  env=production
+  Containers:
+   nginx-container:
+    Image:         nginx:1.27
+    Port:          <none>
+    Host Port:     <none>
+    Environment:   <none>
+    Mounts:        <none>
+  Volumes:         <none>
+  Node-Selectors:  <none>
+  Tolerations:     <none>
+Conditions:
+  Type           Status  Reason
+  ----           ------  ------
+  Available      True    MinimumReplicasAvailable
+  Progressing    True    NewReplicaSetAvailable
+OldReplicaSets:  frontend-deployment-5768454449 (0/0 replicas created)
+NewReplicaSet:   frontend-deployment-6b976dbd67 (4/4 replicas created)
+Events:          <none>
+
+```
+
+The flag `RollingUpdateStrategy` is a very impotant concept for you understand, for example like above we have: 
+
+- `25% max unavailable`: If we have some update, we will have just 25% of out infrasctruture down
+- `25% max surge`: We can create 25% of our infrasctuture for replace the old pods 
+
+So for example, we have 4 replicas of our nginx, let's say i want to alter the nginx image for 1.28 what it happends ? 
+
+![alt text](img/kubernets_roling_update.png)
+
+The cluster will stop the one of the 4 pods that representing exactly 25% of our infrastructure an in the midle of that process will spin up another pod with the new vesion and when finished then it going to next 
+
+
+
+
+
 
 
