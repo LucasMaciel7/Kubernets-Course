@@ -498,9 +498,76 @@ So for example, we have 4 replicas of our nginx, let's say i want to alter the n
 
 ![alt text](img/kubernets_roling_update.png)
 
-The cluster will stop the one of the 4 pods that representing exactly 25% of our infrastructure an in the midle of that process will spin up another pod with the new vesion and when finished then it going to next 
+The cluster will stop the one of the 4 pods that representing exactly 25% of our infrastructure an in the midle of that process will spin up another pod with the new vesion and when finished then it going to next;
+
+### Rolout History
+
+When we apply some change in the deployments, the cluster save the deployment's version in your database, so for example above we change the nginx's image from 1.27 -> 1.28 if you put the command on you terminal you can see the version
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl rollout history deployment frontend-deployment 
+deployment.apps/frontend-deployment 
+REVISION  CHANGE-CAUSE
+1         <none>
+2         <none>
+3         <none>
+
+```
+
+So if you alter anything in the yml file, will be create a ne revision, and for you see with more detail you can set the exactly revision:
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl rollout history deployment frontend-deployment --revision=3
+deployment.apps/frontend-deployment with revision #3
+Pod Template:
+  Labels:       env=production
+        pod-template-hash=5b956c8bdc
+  Containers:
+   nginx-container:
+    Image:      nginx:1.18.0
+    Port:       <none>
+    Host Port:  <none>
+    Environment:        <none>
+    Mounts:     <none>
+  Volumes:      <none>
+  Node-Selectors:       <none>
+  Tolerations:  <none>
+
+➜  Kubernets-Course git:(main) ✗ 
+```
+
+### Deployment rollback
+
+If one change don't work's like you want, you can do the rolled back to another version:
+
+```bash
+kubectl rollout undo deployment frontend-deployment
+```
+
+Then your pod will return to the old version:
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl rollout history deployment frontend-deployment             
+deployment.apps/frontend-deployment 
+REVISION  CHANGE-CAUSE
+1         <none>
+3         <none>
+4         <none>
+
+➜  Kubernets-Course git:(main) ✗ 
+
+```
+
+For example above, we were in the version tree i rollback to the version 2, but for example you can rolled back to a specifique version:
+
+```bash
+kubectl rollout undo deployment frontend-deployment --to-revision=4 
+
+```
 
 
+
+# Kubernets Netowrking
 
 
 
