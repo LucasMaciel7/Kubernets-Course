@@ -569,7 +569,14 @@ kubectl rollout undo deployment frontend-deployment --to-revision=4
 
 # Kubernets Netowrking
 
+![alt text](img/Kubernets-Network.jpg)
 
+## Intra Node pod Network comunication
 
+![alt text](img/veth_pair_per_pod.png)
+
+How you can see in the image above, for pod to pod comunication they comunicate bt local host, so for example when an container needs to comunicate with another contairner they use  `localhost`:8080 the ports indicate what container will be comunicate.
+
+So fo
 
 
