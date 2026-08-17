@@ -573,10 +573,22 @@ kubectl rollout undo deployment frontend-deployment --to-revision=4
 
 ## Intra Node pod Network comunication
 
+When the kubelet created an new pod, he called the `CNI (Container Network Interface)` for create the virtual ethernet to the pod and alocate the IP address to pod, and after he connect the virtual ethernet in a node brigde network, for alls pod from the node can comunicate in the local network with not NAT.
+
 ![alt text](img/veth_pair_per_pod.png)
 
 How you can see in the image above, for pod to pod comunication they comunicate bt local host, so for example when an container needs to comunicate with another contairner they use  `localhost`:8080 the ports indicate what container will be comunicate.
 
-So fo
+But wha happend when you need to comunicate with another contaner inside in a pod in another worker ? 
+
+## Inter node network comunication
 
 
+![alt text](img/k8s_inter_node_networking.png)
+
+Whe we need to comunicate with another pod in another node, behind the scenes the CNI trasport the trafic in aa protocol of cluster like vxlan ou anothers for comunicate in the same local network.
+
+
+# Namespace
+
+With the logical isolate we can projects like deployments, 
