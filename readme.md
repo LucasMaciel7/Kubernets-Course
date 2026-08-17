@@ -591,4 +591,147 @@ Whe we need to comunicate with another pod in another node, behind the scenes th
 
 # Namespace
 
-With the logical isolate we can projects like deployments, 
+![alt text](img/kubernets-namespace.png)
+
+With the logical isolate we can projects like deployments, replica sets, pods. For example, you can isolate your front from backend, and another things that you can do, you literaly can separate per aplications.
+
+```bash
+➜  Kubernets-Course git:(main) kubectl get ns                      
+NAME                   STATUS   AGE
+default                Active   6d5h
+kube-node-lease        Active   6d5h
+kube-public            Active   6d5h
+kube-system            Active   6d5h
+kubernetes-dashboard   Active   6d5h
+➜  Kubernets-Course git:(main) 
+
+
+```
+
+Usualy the kubernets already separate some things in namespace like `kube-system`
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl get pods -n kube-system
+NAME                               READY   STATUS    RESTARTS       AGE
+coredns-7d764666f9-hthb5           1/1     Running   2 (132m ago)   6d5h
+etcd-minikube                      1/1     Running   2 (132m ago)   6d5h
+kube-apiserver-minikube            1/1     Running   2 (132m ago)   6d5h
+kube-controller-manager-minikube   1/1     Running   2 (132m ago)   6d5h
+kube-proxy-hwb92                   1/1     Running   2 (132m ago)   6d5h
+kube-scheduler-minikube            1/1     Running   2 (132m ago)   6d5h
+storage-provisioner                1/1     Running   5 (131m ago)   6d5h
+➜  Kubernets-Course git:(main) ✗ 
+
+
+```
+
+For example, with the comand above we can see the pods created in kube-system's namespaces that the minikube create when he is up. For create a new namespace you can do:
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl create ns frontend --save-config
+namespace/frontend created
+
+```
+
+Now you can see the new namespace:
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl get ns                          
+NAME                   STATUS   AGE
+default                Active   6d5h
+frontend               Active   62s
+kube-node-lease        Active   6d5h
+kube-public            Active   6d5h
+kube-system            Active   6d5h
+kubernetes-dashboard   Active   6d5h
+```
+
+For create a new pod in that namespace, tou can just:
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl apply -f tocat-pod.yml -n frontend 
+pod/tomcat-pod created
+
+```
+
+With the tag `n` we can up the pod on frontend namespace
+
+```bash
+kubectl get pods -n frontend 
+
+NAME         READY   STATUS    RESTARTS   AGE
+tomcat-pod   1/1     Running   0          55s
+
+
+```
+
+When we introduces on kubernets per default we are in the default namespace, for we alter the default namespace to the `frontend` that what we already create.
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl config set-context --current --namespace=frontend
+Context "minikube" modified.
+
+```
+
+Now we are on frontend namespace per default
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl config set-context --current --namespace=frontend
+Context "minikube" modified.
+
+```
+
+Now you can see the pods with no namespace set on the comand without specfying the namespace in the comand
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl get pods
+NAME         READY   STATUS    RESTARTS   AGE
+tomcat-pod   1/1     Running   0          8m8s
+```
+
+you also can create the namespace with manifest files like this:
+
+```bash
+
+apiVersion: v1
+kind: Namespace
+
+metadata:
+  name: backend-ns
+  labels:
+    apps: backend-apps
+
+```
+
+Now just you apply the file:
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl apply -f backend-namespace.yml 
+namespace/backend-ns created
+
+```
+
+When you need to up a new pod, unless you set the namespace in the line command you can only set the namespace on pod metadata like this:
+
+```bash
+apiVersion: v1
+kind: Pod
+metadata:
+  name: redis-pod
+  namespace: backend-ns #### you put the namespace here
+  labels:
+    apps: backend
+spec:
+  containers:
+    - name: redis-container
+      image: redis
+
+``` 
+
+When you need to delete the namespace be careful because when you delete the namespace all things under the namespace is deleted so pods, replicasets, deployments is deleted
+
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl delete ns frontend 
+namespace "frontend" deleted
+```
