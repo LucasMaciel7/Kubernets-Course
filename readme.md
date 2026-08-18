@@ -735,3 +735,274 @@ When you need to delete the namespace be careful because when you delete the nam
 ➜  Kubernets-Course git:(main) ✗ kubectl delete ns frontend 
 namespace "frontend" deleted
 ```
+
+
+# Services
+
+In Kubernetes, a Service exposes Pod applications to other Pods or external clients.
+
+For example, if a container in Pod A needs to communicate with a container in Pod B,
+you could use the Pod's IP address directly — and it would work at first.
+However, Pods don't have fixed IP addresses. If a Pod is restarted or rescheduled,
+its IP changes, breaking the communication.
+
+Services solve this by providing a stable endpoint (IP + DNS) that always routes
+traffic to the correct Pods, regardless of restarts.
+
+## Cluster IP 
+
+With the service cluster ip we use for internal comunications beteween the pods in our cluster for example bellow:
+
+```yml
+apiVersion: v1
+kind: Pod 
+metadata:
+  name:  web-pod
+  labels:
+    type: web-app
+
+spec:
+  containers:
+    - name: web-server-apache
+      image: httpd
+      ports:
+        - containerPort: 8080
+    
+    - name: web-server-tomcat
+      image: tomcat
+      ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata: 
+  name: frontend-service
+spec:
+  type: ClusterIP
+  selector:
+    type: web-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+
+
+```
+
+
+We created one pods and two containers with diferents ports for work and we created also the Service type CLuster IP using the selector looking for pods with labes `type: web-app` includes in our pod, when you apply the file you will be created the pods and service:
+
+
+```bash
+kubectl get services            
+
+NAME               TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE
+frontend-service   ClusterIP   10.107.36.207   <none>        80/TCP    65m
+kubernetes         ClusterIP   10.96.0.1       <none>        443/TCP   7d1h
+
+
+```
+
+With the port and target port flags in our Service
+
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata: 
+  name: frontend-service
+spec:
+  type: ClusterIP
+  selector:
+    type: web-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+```
+
+we are speeking to our cluster, if you get something in the service ip addres: 10.107.36.207:80 the services will search for pods with te labbel `type: web-app` and containers working in the `targetPort` 8080 and dirrecting the trafic to the pod ip addres / target port container. So for exaple, with our example above we have two containres in the pod, if we up a new pod like an debian for example:
+
+```bash
+ubectl run -it debian-pod --image=debian bash  
+```
+
+And run a curl comand in the ip services and port 80:
+
+```bash
+root@debian-pod:/# curl http://10.107.36.207
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<title>It works! Apache httpd</title>
+</head>
+<body>
+<p>It works!</p>
+</body>
+</html>
+
+```
+
+We will be directing to the apache service.
+
+
+## Node port
+
+With the node port we can basicly expose a container inside a pod to the internet, is similary from cluster IP but we just apply a new config on yaml setting the node port
+
+```yaml
+apiVersion: v1
+kind: Pod 
+metadata:
+  name:  web-pod
+  labels:
+    type: web-app
+
+spec:
+  containers:
+    - name: web-server-apache
+      image: httpd
+      ports:
+        - containerPort: 80
+    
+---
+apiVersion: v1
+kind: Service
+metadata: 
+  name: frontend-service
+spec:
+  type: NodePort
+  selector:
+    type: web-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30008
+```
+
+
+We just change the type from ClusterIP to NodePort and the flag `nodePort` is the external port open to the internet, just you apply the file and for you get the url just send the comand:
+
+```
+minikube service frontend-service --url
+```
+
+And will be displayed the url for you acess from your browser.
+
+
+## Load balancer
+
+The kind load balance is for the kubernets do the balance requests to diferents pods based on your health metrics, just you change the type on yor manifest file
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod 
+metadata:
+  name:  web-pod
+  labels:
+    type: web-app
+
+spec:
+  containers:
+    - name: web-server-apache
+      image: httpd
+      ports:
+        - containerPort: 80
+    
+---
+apiVersion: v1
+kind: Service
+metadata: 
+  name: frontend-service
+spec:
+  type: LoadBalancer
+  selector:
+    type: web-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30008
+
+```
+
+
+just you apply the manifest file and you can see the loadbalancer created:
+
+```bash
+service/frontend-service created
+➜  Kubernets-Course git:(main) ✗ kubectl get pods                            
+NAME      READY   STATUS    RESTARTS   AGE
+web-pod   1/1     Running   0          4s
+➜  Kubernets-Course git:(main) ✗ kubectl get service          
+NAME               TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
+frontend-service   LoadBalancer   10.110.218.51   <pending>     80:30008/TCP   10s
+kubernetes         ClusterIP      10.96.0.1       <none>        443/TCP        7d4h
+➜  Kubernets-Course git:(main) ✗ 
+
+```
+
+ 
+## LoadBalancer
+ 
+The LoadBalancer Service type is used to expose your application to external traffic outside the cluster.
+ 
+By default, Kubernetes does not have a single public entry point — each node has its own IP address. This means if you expose your app via NodePort, you have to pick one node's IP, and if that node goes down, external access breaks.
+ 
+The LoadBalancer solves this by provisioning an external load balancer (like AWS ELB or GCP Load Balancer) that sits in front of your nodes with a single stable public IP:
+ 
+```
+[Client Browser]
+       │
+       ▼
+[External Load Balancer]  ← single public IP, detects if a node is down
+       │
+  ┌────┴────┬────┐
+[Node 1] [Node 2] [Node 3]
+       │
+       ▼
+[kube-proxy]  ← balances traffic between Pods
+       │
+  ┌────┴────┐
+[Pod 1]  [Pod 2]
+```
+ 
+It is important to understand the responsibility of each layer:
+ 
+| Layer | Who | Does what |
+|---|---|---|
+| Scheduling | Scheduler | Decides which node a Pod runs on |
+| Internal balancing | kube-proxy | Balances traffic between Pods |
+| External entry point | AWS ELB / GCP LB | Single public IP, detects unavailable nodes |
+ 
+To use it, just change the type in your manifest:
+ 
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+spec:
+  type: LoadBalancer
+  selector:
+    type: web-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+```
+ 
+On cloud providers, the `EXTERNAL-IP` is automatically provisioned. On Minikube, it stays `<pending>` because there is no cloud provider available — to test locally, run:
+ 
+```bash
+minikube tunnel
+```
+ 
+On bare metal or on-premise environments, you can use **MetalLB**, which acts as a load balancer running inside the cluster itself, without depending on a cloud provider.
+
+
+# Liveness probe
+
