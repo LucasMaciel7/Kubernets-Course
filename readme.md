@@ -954,29 +954,9 @@ By default, Kubernetes does not have a single public entry point — each node h
  
 The LoadBalancer solves this by provisioning an external load balancer (like AWS ELB or GCP Load Balancer) that sits in front of your nodes with a single stable public IP:
  
-```
-[Client Browser]
-       │
-       ▼
-[External Load Balancer]  ← single public IP, detects if a node is down
-       │
-  ┌────┴────┬────┐
-[Node 1] [Node 2] [Node 3]
-       │
-       ▼
-[kube-proxy]  ← balances traffic between Pods
-       │
-  ┌────┴────┐
-[Pod 1]  [Pod 2]
-```
+![alt text](img/kubernets-loadbalancer.png)
  
-It is important to understand the responsibility of each layer:
- 
-| Layer | Who | Does what |
-|---|---|---|
-| Scheduling | Scheduler | Decides which node a Pod runs on |
-| Internal balancing | kube-proxy | Balances traffic between Pods |
-| External entry point | AWS ELB / GCP LB | Single public IP, detects unavailable nodes |
+
  
 To use it, just change the type in your manifest:
  
