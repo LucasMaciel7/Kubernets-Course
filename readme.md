@@ -986,3 +986,93 @@ On bare metal or on-premise environments, you can use **MetalLB**, which acts as
 
 # Liveness probe
 
+In Kubernetes, a liveness probe is a container health checker. It consults
+the container periodically to check if it is healthy. If the probe fails,
+the kubelet restarts the container.
+
+```bash
+apiVersion: v1
+kind: Pod
+metadata:
+  name: liveness-pod
+spec:
+  containers:
+    - name: liveness-container-test
+      image: busybox
+      args:
+      - /bin/sh
+      - -c
+      - touch /tmp/healthy; sleep 30; rm -f /tmp/healthy; sleep 600
+
+      livenessProbe:
+        exec:
+          command:
+          - cat
+          - /tmp/healthy
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        failureThreshold: 3
+```
+
+
+With the example above, wen the container is up we will create the file in */tmp/healthy* and after 30 seconds we will delete this file wait   600 seconds. In the liveness probe we send the comand  */tmp/healthy* with initial delay 5 seconds and checking every 5 seconds. if the file does not exists, the comand fails, the probe fails, and the kubernetes restart the container.
+
+# Resources management
+
+We can set manualy the resources that the container will be used, like if i want the container run just with one cpu or 250mib memory we can:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: resources-pod
+spec:
+  containers:
+  - name: apache-container
+    image: httpd
+    
+    resources:
+      requests: 
+        cpu: "500m"
+        memory: "128Mi"
+      limits:
+        cpu: "1000m"
+        memory: "256Mi"
+```
+
+The flag
+
+- `requests`: is the miniamal necessary to container run 
+- `limits`: How the name say, is the limit that the cotainer can used
+
+if you apply the pod, you can see the resources setted on container with
+
+```bash
+kubectl describe pods NamePod
+```
+the output
+
+```bash
+Ps:
+  IP:  10.244.0.75
+Containers:
+  apache-container:
+    Container ID:   docker://1f49b51aba448234c6a3932f77caa564b41003db4f98dc7339c762586cc5e2d8
+    Image:          httpd
+    Image ID:       docker-pullable://httpd@sha256:2920ed8587277d6aa8ea785e143e970835057123dc7bf1199d102c60c80a73bb
+    Port:           <none>
+    Host Port:      <none>
+    State:          Running
+      Started:      Wed, 19 Aug 2026 14:54:48 -0300
+    Ready:          True
+    Restart Count:  0
+    Limits:
+      cpu:     1
+      memory:  256Mi
+    Requests:
+      cpu:        500m
+      memory:     128Mi
+    Environment:  <none>
+    Mounts:
+      /va
+```
