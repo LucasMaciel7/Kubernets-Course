@@ -1076,3 +1076,134 @@ Containers:
     Mounts:
       /va
 ```
+
+# Volumes
+
+In kubernetes there are two kinds volumes that are very important to  understanding before we continue:
+
+- `Ephemeral volumes`: Volumes that the life clycle is tied to the pod lifecycle, so if the pod dies the datas on volume is lost too
+- `Persistence Volumes`: The volume lifecycle is decoupled from pod life-cycle, usualy we use when the data needs to outlive the pod 
+
+
+## EmptyDir
+This is an ephemeral volume called `emptyDir` this indicates that if the pod is deleted the data will be deleleted together but if the pod is restarted the data will not deleted. 
+
+
+```yml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: redis-pod
+
+spec: 
+  containers:
+  - name: redis-container
+    image: redis
+    volumeMounts:
+      - name: "cache-storage"
+        mountPath: "/my-volume"
+
+  volumes:
+  -  name: cache-storage
+     emptyDir: {}
+
+```
+
+Just apply and if you entry on pod you will see the path mount in `/my-volume` inside container.
+
+
+## Host Path
+The host path how name already tell us, it create an path inside on node, where if the pod is deleted the data mantain in the node host.
+
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: redis-pod
+
+spec: 
+  containers:
+  - name: redis-container
+    image: redis
+    volumeMounts:
+    - mountPath: "/my-volume"
+      name: "persist-volume"
+      
+
+  volumes:
+  -  name: "persist-volume"
+     hostPath:
+       path: "/var/lib/2-persist"
+     
+```
+
+Like above, when the pod is createa automatcaly the kubernetes create a volume in `/var/lib/2-persist` on node, where you can mount the volumes from your containers. 
+
+## Persistent Volume Clain
+
+Usualy in day by day when you use cloud providers, the comapany's usualy mount the volumes in `EBS` like on AWS out from node, so the conatainer's data is almost never losted, your cluster kubernetes can down and your datas is save on volumes. And for it, we have the Persistent Volume clain but after this whe have configuration some things like:
+
+### Storage Class
+The storage class we set the configuration in where we will create the volumes:
+
+```yml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-sc
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer  # Wait the pod stay up for create
+parameters:
+  type: gp3
+```
+
+### Persistent Volume Clain (PVC)
+
+The persistent volume we set how the POD will consume the storage volume
+```yml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce       r vez)
+  storageClassName: ebs-sc
+  resources:
+    requests:
+      storage: 5Gi
+```
+
+The `accessModes` flag define ther access on storage and we have some options under:
+
+- `ReadWriteOnce`: Only one node can write and read the volume
+- `ReadOnlyMany`: All nodes can read
+- `ReadWriteMany`: all nodes can read and write on volume
+
+
+### Pod using PVC
+
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: redis-pod
+spec:
+  containers:
+  - name: redis-container
+    image: redis
+    volumeMounts:
+    - name: redis-storage
+      mountPath: "/data"
+  volumes:
+  - name: redis-storage
+    persistentVolumeClaim:
+      claimName: redis-pvc   # indicates the pvc above
+```
+
+When the pod is created, automaticaly is create a new volume on cloud provider and providers like AWS already connets the volume on node.
+
+
+
+
