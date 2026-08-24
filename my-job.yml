@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: luck-number-generator
+  labels:
+    app: lucknumbers
+spec:
+  completions: 6 ## How many executions sucessful
+  parallelism: 2  ## How many run in parallel
+  backoffLimit: 3 ## attempts before  mark fail
+  ttlSecondsAfterFinished: 60 ## Clear job after done
+  template:
+    spec: 
+      restartPolicy: Never ## Never or OnFailure - Never Allways here
+      containers:
+        - name: lucknumbers
+          image: python:3.11-alpine
+          command: ["python", "-c"]
+          args:
+            - |
+              import random
+              numeros = sorted(random.sample(range(1, 61), 6))
+              print("=== Números da Sorte da Loteria ===")
+              for n in numeros:
+                  print(f"  -> {n}")
+              print("===================================")
+              print("Job concluído com sucesso!")
+

@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: luck-number-cronjob
+  labels:
+    app: lucknumbers
+spec:
+  schedule: "* * * * *"        ## Every minute (for testing)
+  successfulJobsHistoryLimit: 3 ## Keep last 3 successful jobs
+  failedJobsHistoryLimit: 1     ## Keep last 1 failed job
+  suspend: false                ## If true, pauses the CronJob
+  jobTemplate:                  ## From here is a normal Job spec
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: lucknumbers
+              image: python:3.11-alpine
+              command: ["python", "-c"]
+              args:
+                - |
+                  import random
+                  numeros = sorted(random.sample(range(1, 61), 6))
+                  print("=== Números da Sorte ===")
+                  for n in numeros:
+                      print(f"  -> {n}")
+                  print("=======================")
+

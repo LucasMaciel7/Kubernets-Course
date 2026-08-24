@@ -488,7 +488,7 @@ NewReplicaSet:   frontend-deployment-6b976dbd67 (4/4 replicas created)
 Events:          <none>
 
 ```
-
+### Rooling Update strategy 
 The flag `RollingUpdateStrategy` is a very impotant concept for you understand, for example like above we have: 
 
 - `25% max unavailable`: If we have some update, we will have just 25% of out infrasctruture down
@@ -1205,5 +1205,605 @@ spec:
 When the pod is created, automaticaly is create a new volume on cloud provider and providers like AWS already connets the volume on node.
 
 
+# Daemon Set
+
+In kubernetes we can create daemons, is like replica sets however we can replicate our pods in another nodes, the yaml is similary to replica set. before we try it, we needs to create another node, for it just: 
+
+```bash
+minikube add node
+```
+
+and for you see the node running 
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl get nodes       
+NAME           STATUS   ROLES           AGE   VERSION
+minikube       Ready    control-plane   9d    v1.35.1
+minikube-m02   Ready    <none>          50m   v1.35.1
+minikube-m03   Ready    <none>          44m   v1.35.1
+➜  Kubernets-Course git:(main) ✗
+```
+
+
+Now we can create the daemon set
+
+
+
+```yml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: 
+   name: frontend-daemonset
+   labels: 
+     app: frontend
+
+spec: 
+  template:
+    metadata: 
+      name: my-pod-webserver
+      labels: 
+        apps: my-app
+        tier: frontend
+    spec:
+      containers:
+      - name: my-container-nginx
+        image: nginx
+
+  selector:
+    matchLabels: 
+     apps: my-app
+
+```
+
+Just apply the file and see the pods created in all nodes:
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl get pods -o wide                                   
+NAME                       READY   STATUS    RESTARTS      AGE     IP            NODE           NOMINATED NODE   READINESS GATES
+frontend-daemonset-5xjrz   1/1     Running   0             9m15s   10.244.0.2    minikube-m02   <none>           <none>
+frontend-daemonset-98hng   1/1     Running   0             9m15s   10.244.0.83   minikube       <none>           <none>
+frontend-daemonset-xxpng   1/1     Running   0             9m15s   10.244.0.2    minikube-m03   <none>           <none>
+
+```
+
+if you up a new node, the daemon will create a new inside node
+
+
+## Daemon Node Selector
+
+We can set the node inside yml config tha what we want to use by labels, first foy you see which labels you have in your nodes
+
+```bash
+kubectl get nodes --show-labels
+```
+
+For apply a new label on node
+
+```bash
+kubectl label node minikube-m02  diskType=ssd
+```
+
+now in you yaml file add the node selector
+
+
+```yml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: 
+   name: frontend-daemonset
+   labels: 
+     app: frontend
+
+spec: 
+  template:
+    metadata: 
+      name: my-pod-webserver
+      labels: 
+        apps: my-app
+        tier: frontend
+    spec:
+      containers:
+      - name: my-container-nginx
+        image: nginx
+
+      nodeSelector:
+        diskType: ssd
+
+  selector:
+    matchLabels: 
+     apps: my-app
+
+```
+
+
+After apply just see that now it up just in one node now 
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl get pods -o wide      
+NAME                       READY   STATUS    RESTARTS   AGE   IP           NODE           NOMINATED NODE   READINESS GATES
+frontend-daemonset-rqbvj   1/1     Running   0          13s   10.244.0.4   minikube-m02   <none>           <none>
+
+```
+
+Or if you dont want to use by labels, you can just set the node Name
+
+```yml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: 
+   name: frontend-daemonset
+   labels: 
+     app: frontend
+
+spec: 
+  template:
+    metadata: 
+      name: my-pod-webserver
+      labels: 
+        apps: my-app
+        tier: frontend
+    spec:
+      nodeName: minikube-m02 
+      containers:
+      - name: my-container-nginx
+        image: nginx
+
+      nodeSelector:
+        diskType: ssd
+
+```
+
+## Update Strategy
+
+By default, the DaemonSets use the rolling update strategy, the same concept
+we saw in [Deployments Rolling Update Strategy](#rooling-update-strategy).
+
+When you update the DaemonSet (change the image, for example), Kubernetes will
+update the pods one by one across the nodes, ensuring the workload stays available
+during the update.
+
+We have two strategies available:
+
+- `RollingUpdate` (default): Updates pods one by one across nodes automatically
+- `OnDelete`: The pod is only updated when you **manually delete it** — Kubernetes
+  will not touch the running pod until you delete it yourself
+
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: frontend-daemonset
+spec:
+  updateStrategy:
+    type: RollingUpdate       
+    rollingUpdate:
+      maxUnavailable: 1       
+  template:
+    ...
+```
+
+### When to use OnDelete?
+
+Use `OnDelete` when you want full control of when each node gets updated —
+for example, in critical infrastructure where you want to manually validate
+each node before proceeding to the next one. It's the more conservative approach.
+
+
+# Jobs
+
+In kubernetes the pods, unlike from daemon sets and deployments which create pods and keep them alive no matters what. Jobs works differently. With pods we can create pods designed for run a task, and once finished, the pod is terminated.
+
+A simple example:
+
+- `Job`: The manager who ensures the task has been completed
+- `Pod`: The employee who executes the task
+- `Container`: The tool the  employee  uses to do the task
+
+
+## Creating a JOb
+
+```yml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: luck-number-generator
+  labels:
+    app: lucknumbers
+spec:
+  completions: 1  ## How many executions sucessful
+  parallelism: 2  ## How many run in parallel
+  backoffLimit: 3 ## attempts before  mark fail
+  ttlSecondsAfterFinished: 60 ## Clear job after done
+  template:
+    spec: 
+      restartPolicy: Never ## Never or OnFailure - Never Allways here
+      containers:
+        - name: lucknumbers
+          image: python:3.11-alpine
+          command: ["python", "-c"]
+          args:
+            - |
+              import random
+              numeros = sorted(random.sample(range(1, 61), 6))
+              print("=== Números da Sorte da Loteria ===")
+              for n in numeros:
+                  print(f"  -> {n}")
+              print("===================================")
+              print("Job concluído com sucesso!")
+
+
+```
+
+After you apply the file, run a get pod in your terminal for see the job life cycle 
+
+```
+➜  Kubernets-Course git:(main) ✗ kubectl apply -f my-job.yml
+job.batch/luck-number-generator created
+➜  Kubernets-Course git:(main) ✗ kubectl get jobs           
+NAME                    STATUS    COMPLETIONS   DURATION   AGE
+luck-number-generator   Running   0/1           4s         4s
+➜  Kubernets-Course git:(main) ✗ kubectl get jobs
+NAME                    STATUS     COMPLETIONS   DURATION   AGE
+luck-number-generator   Complete   1/1           7s         8s
+➜  Kubernets-Course git:(main) ✗ kubectl logs jobs/luck-number-generator      
+=== Números da Sorte da Loteria ===
+  -> 11
+  -> 16
+  -> 28
+  -> 39
+  -> 41
+  -> 53
+===================================
+Job concluído com sucesso!
+➜  Kubernets-Course git:(main) ✗ kubectl get pods                       
+NAME                          READY   STATUS      RESTARTS   AGE
+frontend-daemonset-rqbvj      1/1     Running     0          23h
+luck-number-generator-dm222   0/1     Completed   0          48s
+➜  Kubernets-Course git:(main) ✗ 
+
+```
+
+
+
+
+
+As you can see on yml file the kubernets suport multiple tasks with parelelism in our terminal for example, lets say that we want 6 luck numbers we hav two ways do do it:
+
+- `Sequential (Parallelism: 1)`: 
+
+  ```
+  Nuber 1 -> Number 2 - > Number 3 -> Number 4 -> Number 5 -> Number 6
+  ```
+
+- `Parallel (Parallelism: 2 )`
+
+We will run two numbers together
+
+```
+  Nuber 1 -> Number 3 - > Number 5
+  Nuber 2 -> Number 4 - > Number 6
+
+```
+
+to do this, just alter on yml file
+
+```yml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: luck-number-multi
+  labels:
+    app: lucknumbers
+spec:
+  completions: 6    ## Need 6 successful executions
+  parallelism: 2    ## Run 2 pods at a time
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 60
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: lucknumbers
+          image: python:3.11-alpine
+          command: ["python", "-c"]
+          args:
+            - |
+              import random
+              import os
+              numeros = sorted(random.sample(range(1, 61), 6))
+              print(f"=== Números da Sorte ===")
+              for n in numeros:
+                  print(f"  -> {n}")
+              print("=======================")
+```
+
+I recomend you apply and in another terminal you use the comand for see the pods being created
+
+use this comand
+```
+watch kubectl get pods
+```
+you will se somethin like this
+
+```
+➜  Kubernets-Course git:(main) ✗ kubectl get pods           
+NAME                          READY   STATUS      RESTARTS   AGE
+frontend-daemonset-rqbvj      1/1     Running     0          24h
+luck-number-generator-bhfs6   0/1     Completed   0          14s
+luck-number-generator-cdqj9   0/1     Completed   0          10s
+luck-number-generator-gj4tx   0/1     Completed   0          18s
+luck-number-generator-mz75g   0/1     Completed   0          14s
+luck-number-generator-qdwfm   0/1     Completed   0          10s
+luck-number-generator-z6d26   0/1     Completed   0          18s
+➜  Kubernets-Course git:(main) ✗ 
+```
+
+# Cron Jobs
+
+If the job is a task with beginning, middle and end the cron is your scheduler who create the jobs automatcally in a defined hour 
+
+The cron sintax
+
+```
+# ┌─────────── minute (0-59)
+# │ ┌───────── hour (0-23)
+# │ │ ┌─────── day of month (1-31)
+# │ │ │ ┌───── month (1-12)
+# │ │ │ │ ┌─── week day (0-6, 0=sunday)
+# │ │ │ │ │
+  * * * * *
+```
+
+Example:
+
+```
+"* * * * *"      # Every minute
+"0 * * * *"      # Every hour (minute 0)
+"0 8 * * *"      # Every day at 08:00
+"0 8 * * 1"      # Every monday at 08:00
+"0 0 1 * *"      # Every day 1 of month at midnight
+"*/5 * * * *"    # Every five minutes
+```
+
+Example yml file
+
+```yml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: luck-number-cronjob
+  labels:
+    app: lucknumbers
+spec:
+  schedule: "* * * * *"        ## Every minute (for testing)
+  successfulJobsHistoryLimit: 3 ## Keep last 3 successful jobs
+  failedJobsHistoryLimit: 1     ## Keep last 1 failed job
+  suspend: false                ## If true, pauses the CronJob
+  jobTemplate:                  ## From here is a normal Job spec
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: lucknumbers
+              image: python:3.11-alpine
+              command: ["python", "-c"]
+              args:
+                - |
+                  import random
+                  numeros = sorted(random.sample(range(1, 61), 6))
+                  print("=== Números da Sorte ===")
+                  for n in numeros:
+                      print(f"  -> {n}")
+                  print("=======================")
+```
+
+after apply just see the jobs being created every minute: 
+
+```
+➜  Kubernets-Course git:(main) ✗ kubectl get jobs -w
+
+NAME                           STATUS     COMPLETIONS   DURATION   AGE
+luck-number-cronjob-29789004   Complete   1/1           8s         13s
+luck-number-cronjob-29789005   Running    0/1                      0s
+luck-number-cronjob-29789005   Running    0/1           0s         0s
+luck-number-cronjob-29789005   SuccessCriteriaMet   0/1           4s         4s
+luck-number-cronjob-29789005   Complete             1/1           4s         4s
+luck-number-cronjob-29789006   Running              0/1                      0s
+luck-number-cronjob-29789006   Running              0/1           0s         0s
+luck-number-cronjob-29789006   SuccessCriteriaMet   0/1           3s         3s
+luck-number-cronjob-29789006   Complete             1/1           3s         3s
+luck-number-cronjob-29789007   Running              0/1                      0s
+luck-number-cronjob-29789007   Running              0/1           0s         0s
+luck-number-cronjob-29789007   SuccessCriteriaMet   0/1           3s         3s
+luck-number-cronjob-29789007   Complete             1/1           3s         3s
+luck-number-cronjob-29789004   Complete             1/1           8s         3m3s
+```
+
+
+# Config Map
+
+This the kubertes way for manage variable envroiments, unless you implements the variable hardcode on image container, you can inject inside the container as env with config map. But one thing very important, in kubernetes the config map is recomend for use configMap just for configurations variables, your secret shold never be there for secrets we have another concept that we will explain in the next chapter. 
+
+Config Map sintax
+
+```yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+data:
+  POSTGRES_DB: "meubanco"
+  POSTGRES_USER: "admin"
+  POSTGRES_HOST: "localhost"
+  MAX_CONNECTIONS: "100"
+  TIMEZONE: "America/Sao_Paulo"
+```
+
+To use the congig map we will create the deployment with a postgress
+
+```yml
+# postgres-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          envFrom:
+            - configMapRef:
+                name: postgres-config  ## Injeta tudo como env var
+```
+
+
+for facility to you, you can apply in the same file
+
+```yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+data:
+  POSTGRES_DB: "meubanco"
+  POSTGRES_USER: "admin"
+  POSTGRES_HOST: "localhost"
+  MAX_CONNECTIONS: "100"
+  TIMEZONE: "America/Sao_Paulo"
+
+--- 
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        envFrom:
+          - configMapRef:
+              name: postgres-config ## inject var as env on pod
+
+```
+
+So if you apply, you will see that our config map and deploymeny is created: 
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl get deployments.apps 
+NAME       READY   UP-TO-DATE   AVAILABLE   AGE
+postgres   0/1     1            0           4m11s
+➜  Kubernets-Course git:(main) ✗ 
+
+```
+
+The config map
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl get configmaps
+NAME               DATA   AGE
+kube-root-ca.crt   1      10d
+postgres-config    5      17m
+➜  Kubernets-Course git:(main) ✗ 
+```
+
+But the pod is not running because the postgress for initiality will needs the password database conf, if you see the logs will see this error:
+
+```
+➜  Kubernets-Course git:(main) ✗ kubectl get pods      
+NAME                        READY   STATUS    RESTARTS        AGE
+frontend-daemonset-6lprc    1/1     Running   0               20m
+postgres-6f56db965b-xgwzv   0/1     Error     6 (2m43s ago)   6m3s
+➜  Kubernets-Course git:(main) ✗ 
+```
+
+```bash
+➜  Kubernets-Course git:(main) ✗ kubectl logs pods/postgres-6f56db965b-xgwzv 
+Error: Database is uninitialized and superuser password is not specified.
+       You must specify POSTGRES_PASSWORD to a non-empty value for the
+       superuser. For example, "-e POSTGRES_PASSWORD=password" on "docker run".
+
+       You may also use "POSTGRES_HOST_AUTH_METHOD=trust" to allow all
+       connections without a password. This is *not* recommended.
+
+       See PostgreSQL documentation about "trust":
+       https://www.postgresql.org/docs/current/auth-trust.html
+➜  Kubernets-Course git:(main) 
+```
+
+Now we will create the Secret service for up this database
+
+# Secrets
+
+The secrets is used for save the applications secrets, we don't use the config map in this case because the config map the info on cluster is up on plan text. When the kubernets insert the secret on pod it use Base64 for cryptograpy the secret. for create we can  just edit the yml file we were using for up the database
+
+```yml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+data:
+  POSTGRES_DB: "meubanco"
+  POSTGRES_USER: "admin"
+  POSTGRES_HOST: "localhost"
+  MAX_CONNECTIONS: "100"
+  TIMEZONE: "America/Sao_Paulo"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+type: Opaque
+data:
+  POSTGRES_PASSWORD: bWluaGFzZW5oYTEyMw== ## needs to bee base 64
+
+
+--- 
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        envFrom:
+          - configMapRef:
+              name: postgres-config ## inject var as env on pod
+          - secretRef:
+              name: postgres-secret
+
+```
 
 
