@@ -1,7 +1,36 @@
 # Kubernets course
-This is a readme for documentation of my studies on kubernets, that i am start today using the course on udemy
+This is a readme for documentation of my studies on kubernets, that I started today using the Udemy course
 
+# Table of Contents 
 
+- [What is Kubernetes?](#what-is-kubernetes)
+  - [Control Plane](#control-plane)
+  - [Data Plane](#data-plane)
+  - [Minikube](#minikube)
+  - [Kubectl](#kubectl)
+- [Workloads](#workloads)
+  - [Pods](#going-up-the-first-pod)
+  - [ReplicaSet](#replicaset)
+  - [Deployments](#deployments)
+  - [DaemonSet](#daemon-set)
+  - [Jobs](#jobs)
+  - [CronJobs](#cron-jobs)
+  - [StatefulSet](#statefullset)
+- [Networking](#kubernetes-networking)
+  - [Intra Node Communication](#intra-node-pod-network-comunication)
+  - [Inter Node Communication](#inter-node-network-comunication)
+  - [Namespaces](#namespace)
+  - [Services](#services)
+  - [Ingress](#ingress)
+- [Configuration & Storage](#config-map)
+  - [ConfigMap](#config-map)
+  - [Secrets](#secrets)
+  - [Volumes](#volumes)
+- [Reliability](#liveness-probe)
+  - [Liveness Probe](#liveness-probe)
+  - [Resources Management](#resources-management)
+- [Security](#rbac-role-based-access-control)
+  - [RBAC](#rbac-role-based-access-control)
 
 # What is Kubernets ?
 
@@ -17,7 +46,7 @@ this is an Kubernets cluster example:
 
 The control plane is very important for manage the custer, is the brain of the cluster inside it we have some very importants parts of kubernets like:
 
-- `ETCD`: The database no sql that kubernets use for save the worker's node state 
+- `ETCD`: The database no sql that kubernets use for save the entire cluster state
 
 - `Scheduler`: Scheduler is who decide where a new pod should run based on the node helth metrics
 
@@ -890,61 +919,6 @@ minikube service frontend-service --url
 
 And will be displayed the url for you acess from your browser.
 
-
-## Load balancer
-
-The kind load balance is for the kubernets do the balance requests to diferents pods based on your health metrics, just you change the type on yor manifest file
-
-
-
-```yaml
-apiVersion: v1
-kind: Pod 
-metadata:
-  name:  web-pod
-  labels:
-    type: web-app
-
-spec:
-  containers:
-    - name: web-server-apache
-      image: httpd
-      ports:
-        - containerPort: 80
-    
----
-apiVersion: v1
-kind: Service
-metadata: 
-  name: frontend-service
-spec:
-  type: LoadBalancer
-  selector:
-    type: web-app
-  ports:
-    - name: http
-      port: 80
-      targetPort: 80
-      nodePort: 30008
-
-```
-
-
-just you apply the manifest file and you can see the loadbalancer created:
-
-```bash
-service/frontend-service created
-➜  Kubernets-Course git:(main) ✗ kubectl get pods                            
-NAME      READY   STATUS    RESTARTS   AGE
-web-pod   1/1     Running   0          4s
-➜  Kubernets-Course git:(main) ✗ kubectl get service          
-NAME               TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
-frontend-service   LoadBalancer   10.110.218.51   <pending>     80:30008/TCP   10s
-kubernetes         ClusterIP      10.96.0.1       <none>        443/TCP        7d4h
-➜  Kubernets-Course git:(main) ✗ 
-
-```
-
  
 ## LoadBalancer
  
@@ -983,6 +957,178 @@ minikube tunnel
  
 On bare metal or on-premise environments, you can use **MetalLB**, which acts as a load balancer running inside the cluster itself, without depending on a cloud provider.
 
+# Ingress
+![alt text](/img/cluster-ingress.png)
+
+We have a problem with Service type LoadBalancer: every time you create one in a cloud provider, a new external load balancer is provisioned automatically — and you pay for each one separately. The Ingress solves this by providing a single external entry point that routes traffic internally based on the request path. For example, teste.com.br/frontend routes to the frontend ClusterIP Service, and teste.com.br/api routes to the API ClusterIP Service — one load balancer paying, multiple services exposed.
+
+Example: 
+
+```yml
+# Frontend Pod + Service
+apiVersion: v1
+kind: Pod
+metadata:
+  name: frontend-pod
+  labels:
+    app: frontend
+spec:
+  containers:
+    - name: frontend
+      image: httpd
+      ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-svc
+spec:
+  type: ClusterIP
+  selector:
+    app: frontend
+  ports:
+    - port: 80
+      targetPort: 80
+---
+# Backend Pod + Service
+apiVersion: v1
+kind: Pod
+metadata:
+  name: backend-pod
+  labels:
+    app: backend
+spec:
+  containers:
+    - name: backend
+      image: nginx
+      ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-svc
+spec:
+  type: ClusterIP
+  selector:
+    app: backend
+  ports:
+    - port: 80
+      targetPort: 80
+---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: lab.local
+      http:
+        paths:
+          - path: /frontend
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-svc
+                port:
+                  number: 80
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend-svc
+                port:
+                  number: 80
+```
+
+
+Just apply the file and we will up the pods more services and also the ingress. In ingress how you can see, we are routing the traffic between the services based on path.
+
+The ingress created: 
+```yml
+➜  Kubernets-Course git:(main) ✗ kubectl get ingress
+NAME         CLASS   HOSTS       ADDRESS        PORTS   AGE
+my-ingress   nginx   lab.local   192.168.49.2   80      44s
+➜  Kubernets-Course git:(main) ✗ 
+```
+
+One thing very important for we finshed the test is, how you can see above we have the ingress running on 162.168.49.2 in my local network but in our ingress we set:
+
+```yml
+rules:
+    - host: lab.local
+```
+
+So the trafic will be routed just if the traf arrived in this domain, if arrived in the IP ingress the trafic doesn't bee routed. And for finish we need apply a comand in our local cluster for config this dns resloutions in ou local machine.
+
+```bash
+echo "192.168.49.2 lab.local" | sudo tee -a /etc/hosts
+```
+
+But you need change the IP tou your ingress IP *Dont use the same IP in my documention in your cluster*.  For we verify if is all ok, we can just apply a curl for see the trafic routed between the services.
+
+
+```bash
+curl http://lab.local/frontend
+curl http://lab.local/api
+```
+
+The ouput:
+
+```bash
+➜  Kubernets-Course git:(main) ✗ curl http://lab.local/frontend
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<title>It works! Apache httpd</title>
+</head>
+<body>
+<p>It works!</p>
+</body>
+</html>
+➜  Kubernets-Course git:(main) ✗ 
+
+```
+
+```
+➜  Kubernets-Course git:(main) ✗ curl http://lab.local/api     
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, nginx is successfully installed and working.
+Further configuration is required for the web server, reverse proxy, 
+API gateway, load balancer, content cache, or other features.</p>
+
+<p>For online documentation and support please refer to
+<a href="https://nginx.org/">nginx.org</a>.<br/>
+To engage with the community please visit
+<a href="https://community.nginx.org/">community.nginx.org</a>.<br/>
+For enterprise grade support, professional services, additional 
+security features and capabilities please refer to
+<a href="https://f5.com/nginx">f5.com/nginx</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+➜  Kubernets-Course git:(main) ✗ 
+
+```
 
 # Liveness probe
 
@@ -1754,7 +1900,7 @@ Now we will create the Secret service for up this database
 
 # Secrets
 
-The secrets is used for save the applications secrets, we don't use the config map in this case because the config map the info on cluster is up on plan text. When the kubernets insert the secret on pod it use Base64 for cryptograpy the secret. for create we can  just edit the yml file we were using for up the database
+The secrets is used for save the applications secrets, we don't use the config map in this case because the config map the info on cluster is up on plan text. When the kubernets insert the secret on pod it use Base64 for encode the secret. for create we can  just edit the yml file we were using for up the database
 
 ```yml
 
@@ -1806,4 +1952,346 @@ spec:
 
 ```
 
+Now we have, the config map for explain the postgress variables config and the secret ref using for encode the secret on cluster, but usualy in day bt dat we user another services for save the secret unless the cluster, like AWS Secret Key. 
 
+# StatefullSet
+
+The stateFullSet is a concept very important for us understanding, because with it we solve some problemas that we have in deployments. But after i need to explain a brief summary about what is aplications `Statefull` and `stateless`.
+
+## `StateFull`
+Statefull are aplications that need to save the information state, can bee like a Database server or Redis, or another aplications that needs to save information iside it. For example, you cannot delete one database and up another without the backup server.
+
+## `Stateless`
+
+State less aplications is the contrary statefull aplications, stateless aplications is aplications that doesn't needs to save the information inside then. Are aplications that if you down, you can up another in the same moment. Like an API that just needs to receive an http request, consult the information on database and return to user a json, if you delete the api you can up another in the same time. You dont needs to persist volumes for this application.
+
+In this concept about `StateFull`and `Stateless`we have this example:
+
+- Deployments -> `Stateless aplications`
+- StateFullSet -> `StateFull aplications`
+
+The statefullSet solve problems like:
+
+- `Fixed name pod `:
+The pod from stateFull diferent from deployment, never change. The name off your aplications is previsible;
+
+
+- `Persistent Volume`
+Each pod on stateFull has the persistent volume, so if you delete the pod, you had the data external from kubernetes.
+
+- `DNS`
+You don't need to create a new cluester ip service for expose your POD, when you create a new statefull pod, you need to create togheter a headless service, witch allows each pod to get its own DNS directly 
+
+- `Inialize Order`
+
+You can specify witch pods will inicializate first, for example if you had an clusterized database you can initializate one write database first.
+
+For this up our first statefullSet we will use this example:
+
+```
+Namespace: statefulset-lab
+    │
+    ├── Headless Service (mysql)
+    │
+    └── StatefulSet (mysql)
+            ├── mysql-0  → PVC: data-mysql-0
+            ├── mysql-1  → PVC: data-mysql-1
+            └── mysql-2  → PVC: data-mysql-2
+```
+
+For create the namespace
+
+```
+kubectl create namespace statefulset-lab
+```
+
+Now we will create the headless service:
+
+```yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: statefulset-lab
+spec:
+  clusterIP: None        # <- this is the headless service
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
+```
+
+Just apply and see the service created. 
+
+As we learned for config we will use the config map and for secrets uses ther kubernetes secrests service:
+
+```yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-config
+  namespace: statefulset-lab
+data:
+  MYSQL_DATABASE: "labdb"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-secret
+  namespace: statefulset-lab
+type: Opaque
+stringData:
+  MYSQL_ROOT_PASSWORD: "minhasenha123"
+```
+
+
+and now the final, the statefullSet file:
+
+```yml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: statefulset-lab
+spec:
+  serviceName: "mysql"
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_ROOT_PASSWORD
+            - name: MYSQL_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: mysql-config
+                  key: MYSQL_DATABASE
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+```
+
+When you apply you can valid somethings:
+
+- Pods
+The pods will has a sequence: 
+
+```
+  Kubernets-Course git:(main) ✗ kubectl get pods -n statefulset-lab
+NAME      READY   STATUS    RESTARTS   AGE
+mysql-0   1/1     Running   0          12m
+mysql-1   1/1     Running   0          12m
+mysql-2   1/1     Running   0          12m
+
+```
+
+- ConfigMap
+
+```
+➜  Kubernets-Course git:(main) ✗ kubectl get configmap -n statefulset-lab
+NAME               DATA   AGE
+kube-root-ca.crt   1      23m
+mysql-config       1      12m
+➜  Kubernets-Course git:(main) ✗ 
+```
+
+- Secret
+
+```
+➜  Kubernets-Course git:(main) ✗ kubectl get secret -n statefulset-lab
+NAME           TYPE     DATA   AGE
+mysql-secret   Opaque   1      12m
+
+```
+
+- Headless service
+
+```
+➜  Kubernets-Course git:(main) ✗ kubectl get service  -n statefulset-lab
+NAME    TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)    AGE
+mysql   ClusterIP   None         <none>        3306/TCP   20m
+➜  Kubernets-Course git:(main) ✗ 
+
+```
+
+With this enviroment created, we can check the dns server running a new pod but manualy just for we try the resolution name:
+
+```bash
+kubectl run dns-test \
+  --image=nicolaka/netshoot \
+  --restart=Never \
+  --namespace=statefulset-lab \
+  -it --rm \
+  -- bash
+```
+
+After just you send the `nslookup`comand for you see the resolution name
+
+```bash
+nslookup mysql-0.mysql.statefulset-lab.svc.cluster.local
+nslookup mysql-1.mysql.statefulset-lab.svc.cluster.local
+nslookup mysql-2.mysql.statefulset-lab.svc.cluster.local
+```
+Output 
+
+```bash
+dns-test:~# nslookup mysql-0.mysql.statefulset-lab.svc.cluster.local
+;; Got recursion not available from 10.96.0.10
+Server:         10.96.0.10
+Address:        10.96.0.10#53
+
+Name:   mysql-0.mysql.statefulset-lab.svc.cluster.local
+Address: 10.244.0.3
+;; Got recursion not available from 10.96.0.10
+
+dns-test:~# nslookup mysql-1.mysql.statefulset-lab.svc.cluster.local
+;; Got recursion not available from 10.96.0.10
+Server:         10.96.0.10
+Address:        10.96.0.10#53
+
+Name:   mysql-1.mysql.statefulset-lab.svc.cluster.local
+Address: 10.244.0.4
+;; Got recursion not available from 10.96.0.10
+
+dns-test:~# nslookup mysql-2.mysql.statefulset-lab.svc.cluster.local
+;; Got recursion not available from 10.96.0.10
+Server:         10.96.0.10
+Address:        10.96.0.10#53
+
+Name:   mysql-2.mysql.statefulset-lab.svc.cluster.local
+Address: 10.244.0.5
+
+```
+
+The name server is generate like:
+
+```
+mysql-0  .  mysql  .  statefulset-lab  .  svc  .  cluster.local
+   │           │              │              │           │
+   │           │              │              │           └── domínio raiz do cluster
+   │           │              │              └── service
+   │           │              └── namespace
+   │           └── name headless service
+   └── name pod
+```
+
+Per deafault the rolling update strategy is like deployment but always the maximunUnvaiable is 1 pod, and the order to update the statefull set is from largest to smallest
+
+```
+mysql-2 → update → wait Ready ✅
+mysql-1 → update → wait Ready ✅
+mysql-0 → update → wait Ready ✅
+```
+
+
+# RBAC (Role Based Access Control)
+
+In big's team, you want every person on your team had access only in what he needs. The `RBAC`is the config file that defines the user permissions, for especify exatly tha what ther person needs. With the RBAC we can answer this questions: 
+
+
+1. Who needs access ? ->  User / Service account
+2. What needs to do ? -> Verbs (get, list, delete)
+3. Which resources ? -> Pods, secrets, configmap, deployments....
+4. Which scope ? -> Namespace, all cluster 
+
+Who receives the permissions ? 
+
+- Users
+  - Autenticated user
+- User groups
+- Service Accounts 
+
+
+For explain this step i will create an RBAC for an auditor user that needs just needs access for reading on pods and deployments. 
+
+
+For create the role:
+
+```yml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: auditor-role
+  namespace: rbac-lab
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "deployments"]
+    verbs: ["get", "list", "watch"]
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: auditor
+  namespace: rbac-lab
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: auditor-binding
+  namespace: rbac-lab
+subjects:
+  - kind: ServiceAccount
+    name: auditor
+    namespace: rbac-lab
+roleRef:
+  kind: Role
+  name: auditor-role
+  apiGroup: rbac.authorization.k8s.io
+``` 
+
+- Role: Defines what can do it
+- Service Account: Defines who ca do it
+- RoleBiding: Connects the two
+
+
+This ServiceAccount has permission only to get, list and watch Pods and Deployments within the rbac-lab namespace."
+
+```bash
+# What the auditor can do it
+kubectl auth can-i list pods \
+  --as=system:serviceaccount:rbac-lab:auditor \
+  -n rbac-lab
+
+kubectl auth can-i get pods \
+  --as=system:serviceaccount:rbac-lab:auditor \
+  -n rbac-lab
+
+# What the auditor cannot do it
+kubectl auth can-i delete pods \
+  --as=system:serviceaccount:rbac-lab:auditor \
+  -n rbac-lab
+
+kubectl auth can-i create deployments \
+  --as=system:serviceaccount:rbac-lab:auditor \
+  -n rbac-lab
+```
+
+And now  you can test the permission .
